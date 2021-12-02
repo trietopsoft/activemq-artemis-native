@@ -38,37 +38,58 @@ public class AsyncInputStream extends InputStream {
 
     protected final AtomicBoolean closed = new AtomicBoolean(false);
 
+    /**
+     * 
+     * @param async
+     * @param readAhead
+     * @throws IOException
+     */
     public AsyncInputStream(AsyncStreamContext async, int readAhead) throws IOException {
         this.async = async;
         this.readAhead = readAhead;
 
-        // TODO should queueSize be something else
         this.readyQueue = new PriorityBlockingQueue<>(async.queueSize);
         this.availableQueue = new SpscArrayQueue<>(async.queueSize);
 
         // Pre-allocate buffer cache
         buffers = new ReadBuffer[async.queueSize];
         IntStream.range(0, async.queueSize).forEach(idx -> {
-            buffers[idx] = new ReadBuffer(idx, async, this.readyQueue);
+            buffers[idx] = new ReadBuffer(idx, async.newBuffer(), this.readyQueue);
             this.availableQueue.offer(buffers[idx]);
         });
-        LOG.debug("Reading from file: " + async.file);
 
+        // Issue read requests and wait for beginning of stream
         readRequest();
         this.stream = waitStream(0);
 
     }
 
+    /**
+     * Get the aligned block for the specified position
+     * 
+     * @param position the position
+     * @return the block number
+     */
     long block(long position) {
         // Buffer size defines block number
         return position / async.bufferSize;
     }
 
+    /**
+     * Compute
+     * 
+     * @param position
+     * @return
+     */
     long watermark(long position) {
         // Block defines buffer alignment
         return block(position) * async.bufferSize;
     }
 
+    /**
+     * 
+     * @throws IOException
+     */
     protected void readRequest() throws IOException {
         int inFlight = pending.get() + readyQueue.size();
         if (inFlight < readAhead) {
@@ -84,10 +105,14 @@ public class AsyncInputStream extends InputStream {
                     rb.reset(req);
                     rb.active();
                     int len = (int) Math.min(rb.buffer.capacity(), async.length - req);
+                    if (async.directio) {
+                        // Use block size for compatiblity and fix up after read
+                        len = async.blockSize;
+                    }
                     if (LOG.isTraceEnabled()) {
                         LOG.trace("Read request position=" + req + " len=" + len + ", wm=" + watermark);
                     }
-                    this.async.fileDescriptor.read(req, len, rb.buffer.clear(), rb);
+                    this.async.fileDescriptor.read(req, len, rb.buffer, rb);
                     pending.incrementAndGet();
                 } else {
                     break;
@@ -96,6 +121,11 @@ public class AsyncInputStream extends InputStream {
         }
     }
 
+    /**
+     * 
+     * @param stream
+     * @throws IOException
+     */
     protected void recycle(ReadBuffer stream) throws IOException {
         if (stream != null) {
             if (closed.get()) {
@@ -107,6 +137,12 @@ public class AsyncInputStream extends InputStream {
         this.stream = null;
     }
 
+    /**
+     * 
+     * @param position
+     * @return
+     * @throws IOException
+     */
     protected ReadBuffer waitStream(long position) throws IOException {
         if (position > async.length) {
             return null;
@@ -124,7 +160,6 @@ public class AsyncInputStream extends InputStream {
                 }
                 pending.decrementAndGet();
                 if (rb.position == position) {
-                    // LOG.info("Read ready pos=" + position);
                     if ((rb.position + async.bufferSize) > async.length) {
                         long lim = async.length - rb.position;
                         rb.buffer.limit((int) lim);
@@ -151,15 +186,25 @@ public class AsyncInputStream extends InputStream {
         return null;
     }
 
+    /**
+     * 
+     */
     @Override
     public int available() throws IOException {
         return (int) Math.min(async.length - position, Integer.MAX_VALUE);
     }
 
+    /**
+     * 
+     * @return
+     */
     public long position() {
         return this.position;
     }
 
+    /**
+     * 
+     */
     @Override
     public void close() throws IOException {
         if (closed.compareAndSet(false, true)) {
@@ -199,6 +244,9 @@ public class AsyncInputStream extends InputStream {
         }
     }
 
+    /** 
+     * 
+     */
     @Override
     public int read() throws IOException {
         if (position >= async.length) {
@@ -211,10 +259,17 @@ public class AsyncInputStream extends InputStream {
                 this.stream = waitStream(position);
             }
         }
-        ++position;
-        return this.stream.buffer.get();
+        if (this.stream != null) {
+            ++position;
+            return this.stream.buffer.get();
+        } else {
+            return -1;
+        }
     }
 
+    /**
+     * 
+     */
     @Override
     public int read(byte[] b, int off, int len) throws IOException {
         if (position >= async.length) {
@@ -258,6 +313,9 @@ public class AsyncInputStream extends InputStream {
         return read;
     }
 
+    /**
+     * 
+     */
     @Override
     public long skip(long n) throws IOException {
         if (n <= 0) {
@@ -266,6 +324,12 @@ public class AsyncInputStream extends InputStream {
         return seek(this.position + n);
     }
 
+    /**
+     * 
+     * @param p
+     * @return
+     * @throws IOException
+     */
     public long seek(long p) throws IOException {
         // Find delta
         long delta = p - this.position;

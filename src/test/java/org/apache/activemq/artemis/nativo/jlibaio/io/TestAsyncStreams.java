@@ -39,9 +39,9 @@ import org.junit.rules.TemporaryFolder;
  * This test is using a different package from {@link LibaioFile} as I need to
  * validate public methods on the API
  */
-public class TestAsyncInputStream {
+public class TestAsyncStreams {
 
-    static final Log LOG = LogFactory.getLog(TestAsyncInputStream.class);
+    static final Log LOG = LogFactory.getLog(TestAsyncStreams.class);
 
     @Rule
     public TemporaryFolder temporaryFolder;
@@ -84,7 +84,7 @@ public class TestAsyncInputStream {
         Assert.assertEquals(0, LibaioContext.getTotalMaxIO());
     }
 
-    public TestAsyncInputStream() {
+    public TestAsyncStreams() {
         /*
          * I didn't use /tmp for three reasons - Most systems now will use tmpfs which
          * is not compatible with O_DIRECT - This would fill up /tmp in case of
@@ -277,10 +277,20 @@ public class TestAsyncInputStream {
         count = 0;
         try (
 
-                AsyncInputStream ais = new AsyncStreamContext.Builder().file(workingFile).queueSize(1).blocks(1)
-                        .readAhead(1).readOnly().inputStream();
-                BufferedInputStream bis = new BufferedInputStream(ais, 8192)) {
-            while (bis.read() != -1) {
+                AsyncInputStream ais = new AsyncStreamContext.Builder().file(workingFile).queueSize(2).blocks(2)
+                        .readAhead(2).readOnly().inputStream()) {
+            while (ais.read() != -1) {
+                ++count;
+            }
+        }
+        Assert.assertEquals(22 * 5, count);
+
+        count = 0;
+        try (
+
+                AsyncInputStream ais = new AsyncStreamContext.Builder().file(workingFile).queueSize(2).blocks(2)
+                        .readAhead(2).readOnly().useDirectIO(true).inputStream()) {
+            while (ais.read() != -1) {
                 ++count;
             }
         }
@@ -316,6 +326,26 @@ public class TestAsyncInputStream {
         }
 
         Assert.assertEquals(22 * 10, workingFile.length());
+    }
+
+    @Test
+    public void testMemoryBlocks() throws Exception {
+        ByteBuffer buffer = ByteBuffer.allocate(4096);
+        for (int i = 0; i < 4096; i++) {
+            buffer.put((byte) 'a');
+        }
+        buffer.rewind();
+        byte[] data = buffer.array();
+
+        try (AsyncOutputStream aos = new AsyncStreamContext.Builder().file(workingFile).queueSize(5)
+                .maxMemory(8 * 1024 * 1024)
+                .useFdataSync(false).useDirectIO(true).outputStream();
+                BufferedOutputStream bos = new BufferedOutputStream(aos, 8192)) {
+            for (int i = 0; i < LEN; i++) {
+                bos.write(data);
+            }
+        }
+
     }
 
 }

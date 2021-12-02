@@ -17,8 +17,6 @@ public abstract class StreamBuffer implements SubmitInfo, Closeable {
 
     protected final int id;
 
-    protected final AsyncStreamContext context;
-
     protected final AtomicBoolean active = new AtomicBoolean(false);
 
     protected CountDownLatch latch;
@@ -33,10 +31,9 @@ public abstract class StreamBuffer implements SubmitInfo, Closeable {
 
     protected long position = 0;
 
-    protected StreamBuffer(int id, AsyncStreamContext context) {
+    protected StreamBuffer(int id, ByteBuffer buf) {
         this.id = id;
-        this.context = context;
-        this.buffer = this.context.newBuffer();
+        this.buffer = buf;
     }
 
     public void setLatch(CountDownLatch latch) {

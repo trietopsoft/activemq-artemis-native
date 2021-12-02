@@ -17,8 +17,6 @@
 
 package org.apache.activemq.artemis.nativo.jlibaio.io;
 
-import static org.junit.Assert.assertEquals;
-
 import java.io.BufferedInputStream;
 import java.io.BufferedOutputStream;
 import java.io.File;
@@ -102,7 +100,7 @@ public class LibaioStreamTest {
         System.out.println("System read elapsed: " + (stop - start) + " bytes=" + outFile.length());
     }
 
-    public static final long BLOCKS = 512;
+    public static final long BLOCKS = 32;
 
     @Test
     public void testAsyncStream() throws Exception {

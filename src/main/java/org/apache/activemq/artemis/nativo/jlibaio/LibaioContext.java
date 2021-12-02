@@ -273,7 +273,7 @@ public class LibaioContext<Callback extends SubmitInfo> implements Closeable {
          // set submitted *before* submitWrite in order to guarantee safe publication
          // thanks to JNI
          iocb.submitInfo = callback;
-         int rc = submitWrite(fd, ioContextAddress, iocb.address, position, size,
+         submitWrite(fd, ioContextAddress, iocb.address, position, size,
                RuntimeDependent.directBufferAddress(bufferWrite), iocb.id);
          return iocb.id;
       } catch (IOException ioException) {
@@ -349,7 +349,7 @@ public class LibaioContext<Callback extends SubmitInfo> implements Closeable {
             }
             try {
                // Submitting a dumb write so the loop finishes
-               int rc = submitWrite(dumbFD, ioContextAddress, iocb.address, 0, 0, 0, iocb.id);
+               submitWrite(dumbFD, ioContextAddress, iocb.address, 0, 0, 0, iocb.id);
             } catch (IOException ioException) {
                // TODO handle this
             }
@@ -386,6 +386,7 @@ public class LibaioContext<Callback extends SubmitInfo> implements Closeable {
    }
 
    @Override
+   @SuppressWarnings("deprecation")
    protected void finalize() throws Throwable {
       super.finalize();
       close();

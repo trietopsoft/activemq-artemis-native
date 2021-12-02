@@ -16,3 +16,9 @@
 CMAKE_MINIMUM_REQUIRED(VERSION 2.6)
 PROJECT(artemis-native)
 SUBDIRS(src/main/c)
+
+add_custom_target(package
+    COMMAND mvn clean install -Pbare-metal)
+
+add_custom_target(test
+    COMMAND mvn clean test -Pbare-metal)

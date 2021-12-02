@@ -1,6 +1,6 @@
 package org.apache.activemq.artemis.nativo.jlibaio.io;
 
-import java.util.concurrent.Callable;
+import java.nio.ByteBuffer;
 
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
@@ -13,8 +13,8 @@ public class WriteBuffer extends StreamBuffer {
 
     protected int commit = 0;
 
-    protected WriteBuffer(int id, AsyncOutputStream out) {
-        super(id, out.async);
+    protected WriteBuffer(int id, ByteBuffer buf, AsyncOutputStream out) {
+        super(id, buf);
         this.out = out;
     }
 

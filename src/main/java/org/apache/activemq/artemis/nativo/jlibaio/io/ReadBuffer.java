@@ -1,7 +1,7 @@
 package org.apache.activemq.artemis.nativo.jlibaio.io;
 
+import java.nio.ByteBuffer;
 import java.util.concurrent.BlockingQueue;
-import java.util.concurrent.TimeUnit;
 
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
@@ -12,8 +12,8 @@ public class ReadBuffer extends StreamBuffer implements Comparable<ReadBuffer> {
 
     protected final BlockingQueue<ReadBuffer> queue;
 
-    protected ReadBuffer(int id, AsyncStreamContext ctx, BlockingQueue<ReadBuffer> queue) {
-        super(id, ctx);
+    protected ReadBuffer(int id, ByteBuffer buf, BlockingQueue<ReadBuffer> queue) {
+        super(id, buf);
         this.queue = queue;
     }
 

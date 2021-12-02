@@ -40,13 +40,13 @@ public class AsyncOutputStream extends OutputStream {
         // Pre-allocate buffer cache
         buffers = new WriteBuffer[async.queueSize];
         IntStream.range(0, async.queueSize).forEach(idx -> {
-            buffers[idx] = new WriteBuffer(idx, this);
+            buffers[idx] = new WriteBuffer(idx, async.newBuffer(), this);
             offer(buffers[idx]);
         });
 
         if (append) {
             SynchronousQueue<ReadBuffer> sq = new SynchronousQueue<>();
-            try (ReadBuffer reader = new ReadBuffer(0, async, sq)) {
+            try (ReadBuffer reader = new ReadBuffer(0, async.newBuffer(), sq)) {
                 long pos = async.blockSize * (async.length / async.blockSize);
                 if (pos < async.length) {
                     int len = (int) (async.length - pos);

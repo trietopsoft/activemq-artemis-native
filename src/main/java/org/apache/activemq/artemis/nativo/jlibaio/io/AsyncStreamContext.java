@@ -17,7 +17,7 @@ public class AsyncStreamContext implements Closeable {
 
     public static final int DEFAULT_QUEUE_SIZE = 50;
 
-    public static final int DEFAULT_BUFFER_SIZE = 128;
+    public static final int DEFAULT_BLOCK_COUNT = 32;
 
     private static AtomicLong id = new AtomicLong();
 
@@ -25,7 +25,7 @@ public class AsyncStreamContext implements Closeable {
 
         private File file;
 
-        private int blocks = DEFAULT_BUFFER_SIZE;
+        private int blocks = DEFAULT_BLOCK_COUNT;
 
         private int queueSize = DEFAULT_QUEUE_SIZE;
 
@@ -42,6 +42,8 @@ public class AsyncStreamContext implements Closeable {
         private int readAhead = 1;
 
         private long preallocate = 0;
+
+        private long maxMemory = -1;
 
         public Builder file(File file) {
             this.file = file;
@@ -71,6 +73,11 @@ public class AsyncStreamContext implements Closeable {
 
         public Builder blocks(int blocks) {
             this.blocks = blocks;
+            return this;
+        }
+
+        public Builder maxMemory(long maxMem) {
+            this.maxMemory = maxMem;
             return this;
         }
 
@@ -152,12 +159,30 @@ public class AsyncStreamContext implements Closeable {
         if (this.blockSize <= 0) {
             LOG.error("Error obtaining block size from path " + this.file.getParentFile() + ", got " + this.blockSize);
         }
-        this.bufferSize = build.blocks * this.blockSize;
+        if (build.maxMemory > 0) {
+            if (build.blocks != DEFAULT_BLOCK_COUNT) {
+                LOG.warn("Block count and memory both set, will use memory estimate: " + build.maxMemory);
+            }
+            if (LOG.isTraceEnabled()) {
+                LOG.trace("Computing blocks with max=" + build.maxMemory);
+            }
+            // Must be at least queueSize * blockSize
+            long queueBuffer = this.queueSize * this.blockSize;
+            long mem = Math.max(build.maxMemory, queueBuffer);
+            // Adjust number of blocks (rounded)
+            build.blocks = (int) (mem / queueBuffer);
+            this.bufferSize = build.blocks * this.blockSize;
+        } else {
+            this.bufferSize = build.blocks * this.blockSize;
+        }
 
         // Stats report
-        LOG.debug("File " + file + " block size " + blockSize + ", sync on close? " + syncOnClose);
-        LOG.trace("Opening " + queueSize + " with block " + build.blocks + "*" + this.blockSize + " buffers of size "
-                + this.bufferSize + ", total mem: " + (((long) this.bufferSize) * this.queueSize) + " bytes");
+        if (LOG.isDebugEnabled()) {
+            LOG.debug("File " + file + " block size " + blockSize + ", sync on close? " + syncOnClose);
+            LOG.debug("Opening " + queueSize + " queue with block " + build.blocks + "*" + this.blockSize
+                    + " buffers of size "
+                    + this.bufferSize + ", total mem: " + (((long) this.bufferSize) * this.queueSize) + " bytes");
+        }
 
         this.context = new LibaioContext<>(build.queueSize, build.semaphore, build.fdataSync);
         this.fileDescriptor = this.context.openFile(this.file, this.directio);
