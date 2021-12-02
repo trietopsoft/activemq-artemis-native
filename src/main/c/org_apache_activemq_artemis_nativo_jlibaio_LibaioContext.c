@@ -20,7 +20,7 @@
 #define _GNU_SOURCE
 #endif
 
-//#define DEBUG
+// #define DEBUG
 
 #include <jni.h>
 #include <unistd.h>
@@ -494,7 +494,7 @@ JNIEXPORT jlong Java_org_apache_activemq_artemis_nativo_jlibaio_LibaioContext_me
     return (jlong) (*env)->GetDirectBufferAddress(env, buffer);
 }
 
-JNIEXPORT void JNICALL Java_org_apache_activemq_artemis_nativo_jlibaio_LibaioContext_submitWrite
+JNIEXPORT jint JNICALL Java_org_apache_activemq_artemis_nativo_jlibaio_LibaioContext_submitWrite
   (JNIEnv * env, jclass clazz, jint fileHandle, jlong ioContextAddress, jlong iocbAddress, jlong position, jint size, jlong bufferAddress, jlong requestId) {
     #ifdef DEBUG
        fprintf (stdout, "submitWrite position %ld, size %d\n", position, size);
@@ -508,7 +508,7 @@ JNIEXPORT void JNICALL Java_org_apache_activemq_artemis_nativo_jlibaio_LibaioCon
 
     iocb->data = (void *)requestId;
 
-    submit(env, io_context, iocb);
+    return submit(env, io_context, iocb);
 }
 
 JNIEXPORT void JNICALL Java_org_apache_activemq_artemis_nativo_jlibaio_LibaioContext_submitFDataSync
@@ -528,7 +528,7 @@ JNIEXPORT void JNICALL Java_org_apache_activemq_artemis_nativo_jlibaio_LibaioCon
     submit(env, io_context, iocb);
 }
 
-JNIEXPORT void JNICALL Java_org_apache_activemq_artemis_nativo_jlibaio_LibaioContext_submitRead
+JNIEXPORT jint JNICALL Java_org_apache_activemq_artemis_nativo_jlibaio_LibaioContext_submitRead
   (JNIEnv * env, jclass clazz, jint fileHandle, jlong ioContextAddress, jlong iocbAddress, jlong position, jint size, jlong bufferAddress, jlong requestId) {
     #ifdef DEBUG
         fprintf (stdout, "submitRead position %ld, size %d\n", position, size);
@@ -541,7 +541,7 @@ JNIEXPORT void JNICALL Java_org_apache_activemq_artemis_nativo_jlibaio_LibaioCon
 
     iocb->data = (void *)requestId;
 
-    submit(env, io_context, iocb);
+    return submit(env, io_context, iocb);
 }
 
 JNIEXPORT jint JNICALL Java_org_apache_activemq_artemis_nativo_jlibaio_LibaioContext_poll
@@ -574,8 +574,16 @@ JNIEXPORT jobject JNICALL Java_org_apache_activemq_artemis_nativo_jlibaio_Libaio
     return (*env)->NewDirectByteBuffer(env, buffer, size);
 }
 
-JNIEXPORT void JNICALL Java_org_apache_activemq_artemis_nativo_jlibaio_LibaioContext_fdatasync(JNIEnv * env, jclass clazz, jint fd) {
-    fdatasync(fd);
+JNIEXPORT jint JNICALL Java_org_apache_activemq_artemis_nativo_jlibaio_LibaioContext_fdatasync(JNIEnv * env, jclass clazz, jint fd) {
+    return fdatasync(fd);
+}
+
+JNIEXPORT jint JNICALL Java_org_apache_activemq_artemis_nativo_jlibaio_LibaioContext_fsync(JNIEnv * env, jclass clazz, jint fd) {
+    return fsync(fd);
+}
+
+JNIEXPORT jint JNICALL Java_org_apache_activemq_artemis_nativo_jlibaio_LibaioContext_ftruncate(JNIEnv * env, jclass clazz, jint fd, jlong size) {
+    return ftruncate(fd, (off_t) size);
 }
 
 JNIEXPORT void JNICALL Java_org_apache_activemq_artemis_nativo_jlibaio_LibaioContext_freeBuffer

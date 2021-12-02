@@ -27,7 +27,7 @@ public class CallbackCachelTest {
 
    @Test
    public void testPartiallyInitialized() {
-      CallbackCache<MyPool> pool = new CallbackCache(100);
+      CallbackCache<MyPool> pool = new CallbackCache<>(MyPool.class, 100);
 
       for (int i = 0; i < 50; i++) {
          pool.put(new MyPool(i));

@@ -14,5 +14,5 @@
 # limitations under the License.
 
 CMAKE_MINIMUM_REQUIRED(VERSION 2.6)
-
+PROJECT(artemis-native)
 SUBDIRS(src/main/c)

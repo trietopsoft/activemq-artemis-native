@@ -21,6 +21,7 @@ import java.nio.ByteOrder;
 
 /**
  * Unsafe access representation for an array of:
+ * 
  * <pre>
  * struct io_event {
  *    __u64		data;		// the data field from the iocb
@@ -90,6 +91,11 @@ public final class IoEventArray {
       public IoEvent res(long value) {
          array.putLong(offset + RES_OFFSET, value);
          return this;
+      }
+
+      @Override
+      public String toString() {
+         return "IoEvent [offset=" + offset + ", data=" + data() + ", obj=" + obj() + ", res=" + res() + "]";
       }
 
    }

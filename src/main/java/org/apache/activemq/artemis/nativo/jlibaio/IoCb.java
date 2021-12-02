@@ -21,19 +21,21 @@ import java.nio.ByteOrder;
 
 /**
  * <pre>
- * struct iocb {
- *    __u64   aio_data;
- *    __u32   PADDED(aio_key, aio_rw_flags);
- *    __u16   aio_lio_opcode;
- *    __s16   aio_reqprio;
- *    __u32   aio_fildes;
- *    __u64   aio_buf;
- *    __u64   aio_nbytes;
- *    __s64   aio_offset;
- *    __u64   aio_reserved2;
- *    __u32   aio_flags;
- *    __u32   aio_resfd;
- * };
+ *  offset    |  size  type = struct iocb {
+ *    0      |     8    __u64 aio_data;
+ *    8      |     4    __u32 aio_key;
+ *   12      |     4    __kernel_rwf_t aio_rw_flags;
+ *   16      |     2    __u16 aio_lio_opcode;
+ *   18      |     2    __s16 aio_reqprio;
+ *   20      |     4    __u32 aio_fildes;
+ *   24      |     8    __u64 aio_buf;
+ *   32      |     8    __u64 aio_nbytes;
+ *   40      |     8    __s64 aio_offset;
+ *   48      |     8    __u64 aio_reserved2;
+ *   56      |     4    __u32 aio_flags;
+ *   60      |     4    __u32 aio_resfd;
+ * total size (bytes):   64
+ * }
  * </pre>
  */
 public final class IoCb {
@@ -50,8 +52,9 @@ public final class IoCb {
    static final short IOCB_CMD_FDSYNC = 3;
 
    private static final int DATA_OFFSET = 0;
-   private static final int PADDED_OFFSET = DATA_OFFSET + 8;
-   private static final int LIO_OPCODE_OFFSET = PADDED_OFFSET + 8;
+   private static final int KEY_OFFSET = DATA_OFFSET + 8;
+   private static final int RW_FLAGS_OFFSET = KEY_OFFSET + 4;
+   private static final int LIO_OPCODE_OFFSET = RW_FLAGS_OFFSET + 4;
    private static final int REQ_PRIO_OFFSET = LIO_OPCODE_OFFSET + 2;
    private static final int FILDES_OFFSET = REQ_PRIO_OFFSET + 2;
    private static final int BUF_OFFSET = FILDES_OFFSET + 4;

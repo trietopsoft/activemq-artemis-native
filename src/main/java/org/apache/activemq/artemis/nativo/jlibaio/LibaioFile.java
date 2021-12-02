@@ -19,20 +19,24 @@ package org.apache.activemq.artemis.nativo.jlibaio;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 
+import org.apache.commons.logging.Log;
+import org.apache.commons.logging.LogFactory;
+
 /**
  * This is an extension to use libaio.
  */
 public final class LibaioFile<Callback extends SubmitInfo> implements AutoCloseable {
 
+   static final Log LOG = LogFactory.getLog(LibaioFile.class);
+
    protected boolean open;
    /**
-    * This represents a structure allocated on the native
-    * this is a io_context_t
+    * This represents a structure allocated on the native this is a io_context_t
     */
    private final LibaioContext<Callback> ctx;
    private final int fd;
 
-   LibaioFile(int fd, LibaioContext ctx) {
+   LibaioFile(int fd, LibaioContext<Callback> ctx) {
       this.ctx = ctx;
       this.fd = fd;
    }
@@ -43,6 +47,20 @@ public final class LibaioFile<Callback extends SubmitInfo> implements AutoClosea
 
    public boolean lock() {
       return LibaioContext.lock(fd);
+   }
+
+   public void sync() throws IOException {
+      int rc = 0;
+      if ((rc = LibaioContext.fsync(fd)) != 0) {
+         throw new IOException("Sync error, code: " + rc);
+      }
+   }
+
+   public void truncate(long size) throws IOException {
+      int rc = 0;
+      if ((rc = LibaioContext.ftruncate(fd, size)) != 0) {
+         throw new IOException("Truncate error, code: " + rc);
+      }
    }
 
    @Override
@@ -59,16 +77,19 @@ public final class LibaioFile<Callback extends SubmitInfo> implements AutoClosea
    }
 
    /**
-    * It will submit a write to the queue. The callback sent here will be received on the
-    * {@link LibaioContext#poll(SubmitInfo[], int, int)}
-    * In case of the libaio queue is full (e.g. returning E_AGAIN) this method will return false.
+    * It will submit a write to the queue. The callback sent here will be received
+    * on the {@link LibaioContext#poll(SubmitInfo[], int, int)} In case of the
+    * libaio queue is full (e.g. returning E_AGAIN) this method will return false.
     * <br>
-    * Notice: this won't hold a global reference on buffer, callback should hold a reference towards bufferWrite.
-    * And don't free the buffer until the callback was called as this could crash the VM.
+    * Notice: this won't hold a global reference on buffer, callback should hold a
+    * reference towards bufferWrite. And don't free the buffer until the callback
+    * was called as this could crash the VM.
     *
-    * @param position The position on the file to write. Notice this has to be a multiple of 512.
+    * @param position The position on the file to write. Notice this has to be a
+    *                 multiple of 512.
     * @param size     The size of the buffer to use while writing.
-    * @param buffer   if you are using O_DIRECT the buffer here needs to be allocated by {@link #newBuffer(int)}.
+    * @param buffer   if you are using O_DIRECT the buffer here needs to be
+    *                 allocated by {@link #newBuffer(int)}.
     * @param callback A callback to be returned on the poll method.
     * @throws java.io.IOException in case of error
     */
@@ -77,17 +98,19 @@ public final class LibaioFile<Callback extends SubmitInfo> implements AutoClosea
    }
 
    /**
-    * It will submit a read to the queue. The callback sent here will be received on the
-    * {@link LibaioContext#poll(SubmitInfo[], int, int)}.
-    * In case of the libaio queue is full (e.g. returning E_AGAIN) this method will return false.
+    * It will submit a read to the queue. The callback sent here will be received
+    * on the {@link LibaioContext#poll(SubmitInfo[], int, int)}. In case of the
+    * libaio queue is full (e.g. returning E_AGAIN) this method will return false.
     * <br>
-    * Notice: this won't hold a global reference on buffer, callback should hold a reference towards bufferWrite.
-    * And don't free the buffer until the callback was called as this could crash the VM.
-    * *
+    * Notice: this won't hold a global reference on buffer, callback should hold a
+    * reference towards bufferWrite. And don't free the buffer until the callback
+    * was called as this could crash the VM. *
     *
-    * @param position The position on the file to read. Notice this has to be a multiple of 512.
+    * @param position The position on the file to read. Notice this has to be a
+    *                 multiple of 512.
     * @param size     The size of the buffer to use while reading.
-    * @param buffer   if you are using O_DIRECT the buffer here needs to be allocated by {@link #newBuffer(int)}.
+    * @param buffer   if you are using O_DIRECT the buffer here needs to be
+    *                 allocated by {@link #newBuffer(int)}.
     * @param callback A callback to be returned on the poll method.
     * @throws java.io.IOException in case of error
     * @see LibaioContext#poll(SubmitInfo[], int, int)
@@ -97,9 +120,8 @@ public final class LibaioFile<Callback extends SubmitInfo> implements AutoClosea
    }
 
    /**
-    * It will allocate a buffer to be used on libaio operations.
-    * Buffers here are allocated with posix_memalign.
-    * <br>
+    * It will allocate a buffer to be used on libaio operations. Buffers here are
+    * allocated with posix_memalign. <br>
     * You need to explicitly free the buffer created from here using the
     * {@link LibaioContext#freeBuffer(java.nio.ByteBuffer)}.
     *
@@ -119,7 +141,7 @@ public final class LibaioFile<Callback extends SubmitInfo> implements AutoClosea
       try {
          LibaioContext.fill(fd, alignment, size);
       } catch (OutOfMemoryError e) {
-         NativeLogger.LOGGER.debug("Didn't have enough memory to allocate " + size + " bytes in memory, using simple fallocate");
+         LOG.debug("Didn't have enough memory to allocate " + size + " bytes in memory, using simple fallocate");
          LibaioContext.fallocate(fd, size);
       }
    }

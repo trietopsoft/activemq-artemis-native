@@ -52,9 +52,9 @@ public class LibaioStressTest {
      */
     private static final int LIBAIO_QUEUE_SIZE = 4096;
 
-    private int errors = 0;
-
     private boolean running = true;
+
+    private long errors = 0;
 
     @Rule
     public TemporaryFolder temporaryFolder;
@@ -67,7 +67,7 @@ public class LibaioStressTest {
     }
 
     @After
-    public void deleteFactory() throws IOException {
+    public void deleteFactory() {
         control.close();
         validateLibaio();
     }
@@ -90,12 +90,12 @@ public class LibaioStressTest {
 
     @Test
     public void testOpen() throws Exception {
-        LibaioFile fileDescriptor = control.openFile(temporaryFolder.newFile("test.bin"), true);
+        LibaioFile<MyClass> fileDescriptor = control.openFile(temporaryFolder.newFile("test.bin"), true);
         fileDescriptor.close();
     }
 
 
-    CallbackCache<MyClass> callbackCache = new CallbackCache<>(LIBAIO_QUEUE_SIZE);
+    CallbackCache<MyClass> callbackCache = new CallbackCache<>(MyClass.class, LIBAIO_QUEUE_SIZE);
 
     class MyClass implements SubmitInfo {
 
@@ -194,7 +194,7 @@ public class LibaioStressTest {
         ReusableLatch latchWrites = new ReusableLatch(0);
 
         File file = temporaryFolder.newFile(fileName);
-        LibaioFile fileDescriptor = control.openFile(file, true);
+        LibaioFile<MyClass> fileDescriptor = control.openFile(file, true);
 
         // ByteBuffer buffer = ByteBuffer.allocateDirect(4096);
         ByteBuffer buffer = LibaioContext.newAlignedBuffer(4096, 4096);
@@ -218,12 +218,12 @@ public class LibaioStressTest {
 
             if (System.currentTimeMillis() > nextBreak) {
                 if (!latchWrites.await(10, TimeUnit.SECONDS)) {
-                    System.err.println("Latch did not complete for some reason");
                     errors++;
+                    System.err.println("Latch did not complete for some reason, errors=" + errors);
                     return;
                 }
                 fileDescriptor.close();
-
+                System.out.println("Re-open " + fileName);
                 fileDescriptor = control.openFile(file, true);
                 pos = 0;
                 // we close / open a file every 5 seconds
@@ -256,7 +256,7 @@ public class LibaioStressTest {
             }
 
         }
-
+        System.out.println("Wrote "  + count + " buffers at " + fileName + " sleep=" + sleeps);
         fileDescriptor.close();
     }
 

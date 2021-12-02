@@ -20,6 +20,7 @@ PROJECT(artemis-native)
 SET(${PROJECT_NAME}_MAJOR_VERSION 1)
 SET(${PROJECT_NAME}_MINOR_VERSION 0)
 SET(${PROJECT_NAME}_PATCH_LEVEL 0)
+# SET(CMAKE_BUILD_TYPE Debug)
 
 FIND_PACKAGE(Java)
 FIND_PACKAGE(JNI)
@@ -69,12 +70,6 @@ find_library(LIBAIO_LIB NAMES aio)
 message(STATUS "Using the following libaio library for linking: ${LIBAIO_LIB}")
 
 INCLUDE_DIRECTORIES(. ${JNI_INCLUDE_DIRS})
-
-ADD_CUSTOM_COMMAND(
-    OUTPUT org_apache_activemq_artemis_nativo_jlibaio_LibaioContext.h
-    COMMAND javah -cp ../java/ org.apache.activemq.artemis.nativo.jlibaio.LibaioContext
-    DEPENDS ../java/org/apache/activemq/artemis/nativo/jlibaio/LibaioContext.java
-)
 
 ADD_LIBRARY(artemis-native SHARED org_apache_activemq_artemis_nativo_jlibaio_LibaioContext.c org_apache_activemq_artemis_nativo_jlibaio_LibaioContext.h exception_helper.h)
 

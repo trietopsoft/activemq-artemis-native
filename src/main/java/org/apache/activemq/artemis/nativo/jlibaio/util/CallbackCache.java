@@ -17,14 +17,18 @@
 
 package org.apache.activemq.artemis.nativo.jlibaio.util;
 
+import java.lang.reflect.Array;
+import java.util.ArrayList;
+
 import org.apache.activemq.artemis.nativo.jlibaio.SubmitInfo;
 
 /**
- * this is an utility class where you can reuse Callback objects for your LibaioContext usage.
+ * this is an utility class where you can reuse Callback objects for your
+ * LibaioContext usage.
  */
 public class CallbackCache<Callback extends SubmitInfo> {
 
-   private final SubmitInfo[] pool;
+   private final Callback[] pool;
 
    private int put = 0;
    private int get = 0;
@@ -33,8 +37,9 @@ public class CallbackCache<Callback extends SubmitInfo> {
 
    private final Object lock = new Object();
 
-   public CallbackCache(int size) {
-      this.pool = new SubmitInfo[size];
+   @SuppressWarnings("unchecked")
+   public CallbackCache(Class<Callback> cb, int size) {
+      this.pool = (Callback[]) Array.newInstance(cb, size);
       this.size = size;
    }
 
@@ -43,7 +48,7 @@ public class CallbackCache<Callback extends SubmitInfo> {
          if (available <= 0) {
             return null;
          } else {
-            Callback retValue = (Callback) pool[get];
+            Callback retValue = pool[get];
             pool[get] = null;
             if (retValue == null) {
                throw new NullPointerException("You should initialize the pool before using it");
@@ -58,7 +63,7 @@ public class CallbackCache<Callback extends SubmitInfo> {
       }
    }
 
-   public CallbackCache put(Callback callback) {
+   public CallbackCache<Callback> put(Callback callback) {
       if (callback == null) {
          return null;
       }

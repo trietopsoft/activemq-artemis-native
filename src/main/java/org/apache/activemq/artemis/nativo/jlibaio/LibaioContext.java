@@ -40,21 +40,25 @@ import org.jctools.queues.atomic.MpmcAtomicArrayQueue;
 import org.jctools.util.UnsafeAccess;
 import sun.misc.Unsafe;
 
+import org.apache.commons.logging.Log;
+import org.apache.commons.logging.LogFactory;
+
 /**
- * This class is used as an aggregator for the {@link LibaioFile}.
- * <br>
- * It holds native data, and it will share a libaio queue that can be used by multiple files.
- * <br>
- * You need to use the poll methods to read the result of write and read submissions.
- * <br>
- * You also need to use the special buffer created by {@link LibaioFile} as you need special alignments
- * when dealing with O_DIRECT files.
- * <br>
- * A Single controller can server multiple files. There's no need to create one controller per file.
- * <br>
- * <a href="https://ext4.wiki.kernel.org/index.php/Clarifying_Direct_IO's_Semantics">Interesting reading for this.</a>
+ * This class is used as an aggregator for the {@link LibaioFile}. <br>
+ * It holds native data, and it will share a libaio queue that can be used by
+ * multiple files. <br>
+ * You need to use the poll methods to read the result of write and read
+ * submissions. <br>
+ * You also need to use the special buffer created by {@link LibaioFile} as you
+ * need special alignments when dealing with O_DIRECT files. <br>
+ * A Single controller can server multiple files. There's no need to create one
+ * controller per file. <br>
+ * <a href=
+ * "https://ext4.wiki.kernel.org/index.php/Clarifying_Direct_IO's_Semantics">Interesting
+ * reading for this.</a>
  */
 public class LibaioContext<Callback extends SubmitInfo> implements Closeable {
+   static final Log LOG = LogFactory.getLog(LibaioContext.class);
 
    private static final AtomicLong totalMaxIO = new AtomicLong(0);
 
@@ -96,20 +100,20 @@ public class LibaioContext<Callback extends SubmitInfo> implements Closeable {
       try {
          System.loadLibrary(name);
          if (getNativeVersion() != EXPECTED_NATIVE_VERSION) {
-            NativeLogger.LOGGER.incompatibleNativeLibrary();
+            LOG.error("incompatibleNativeLibrary");
             return false;
          } else {
             return true;
          }
       } catch (Throwable e) {
-         NativeLogger.LOGGER.debug(name + " -> error loading the native library", e);
+         LOG.warn(name + " -> error loading the native library", e);
          return false;
       }
 
    }
 
    static {
-      String[] libraries = new String[]{"artemis-native-64", "artemis-native-32"};
+      String[] libraries = new String[] { "artemis-native-64", "artemis-native-32" };
       for (String library : libraries) {
          if (loadLibrary(library)) {
             loaded = true;
@@ -125,11 +129,11 @@ public class LibaioContext<Callback extends SubmitInfo> implements Closeable {
             });
             break;
          } else {
-            NativeLogger.LOGGER.debug("Library " + library + " not found!");
+            LOG.warn("Library " + library + " not found!");
          }
       }
       if (!loaded) {
-         NativeLogger.LOGGER.debug("Couldn't locate LibAIO Wrapper");
+         LOG.error("Couldn't locate LibAIO Wrapper");
       }
    }
 
@@ -143,7 +147,10 @@ public class LibaioContext<Callback extends SubmitInfo> implements Closeable {
 
    public static native void setForceSyscall(boolean value);
 
-   /** The system may choose to set this if a failing condition happened inside the code. */
+   /**
+    * The system may choose to set this if a failing condition happened inside the
+    * code.
+    */
    public static native boolean isForceSyscall();
 
    /**
@@ -158,8 +165,7 @@ public class LibaioContext<Callback extends SubmitInfo> implements Closeable {
    /**
     * It will reset all the positions on the buffer to 0, using memset.
     *
-    * @param buffer a native buffer.
-    *               s
+    * @param buffer a native buffer. s
     */
    public void memsetBuffer(ByteBuffer buffer) {
       memsetBuffer(buffer, buffer.limit());
@@ -190,18 +196,21 @@ public class LibaioContext<Callback extends SubmitInfo> implements Closeable {
 
    /**
     * The queue size here will use resources defined on the kernel parameter
-    * <a href="https://www.kernel.org/doc/Documentation/sysctl/fs.txt">fs.aio-max-nr</a> .
+    * <a href=
+    * "https://www.kernel.org/doc/Documentation/sysctl/fs.txt">fs.aio-max-nr</a> .
     *
-    * @param queueSize    the size to be initialize on libaio
-    *                     io_queue_init which can't be higher than /proc/sys/fs/aio-max-nr.
-    * @param useSemaphore should block on a semaphore avoiding using more submits than what's available.
+    * @param queueSize    the size to be initialize on libaio io_queue_init which
+    *                     can't be higher than /proc/sys/fs/aio-max-nr.
+    * @param useSemaphore should block on a semaphore avoiding using more submits
+    *                     than what's available.
     * @param useFdatasync should use fdatasync before calling callbacks.
     */
    public LibaioContext(int queueSize, boolean useSemaphore, boolean useFdatasync) {
       try {
          contexts.incrementAndGet();
          this.ioControl = newContext(queueSize);
-         // Better use JNI here, because the context address size depends on the machine word size
+         // Better use JNI here, because the context address size depends on the machine
+         // word size
          this.ioContextAddress = getIOContextAddress(ioControl);
          this.iocbPool = RuntimeDependent.newMpmcQueue(queueSize);
          this.iocbArray = new PooledIOCB[queueSize];
@@ -241,7 +250,8 @@ public class LibaioContext<Callback extends SubmitInfo> implements Closeable {
       return new AioRing(ioContextAddress);
    }
 
-   public int submitWrite(int fd, long position, int size, ByteBuffer bufferWrite, Callback callback) throws IOException {
+   public int submitWrite(int fd, long position, int size, ByteBuffer bufferWrite, Callback callback)
+         throws IOException {
       if (closed.get()) {
          throw new IOException("Libaio Context is closed!");
       }
@@ -260,9 +270,11 @@ public class LibaioContext<Callback extends SubmitInfo> implements Closeable {
       }
       try {
          assert iocb.submitInfo == null;
-         // set submitted *before* submitWrite in order to guarantee safe publication thanks to JNI
+         // set submitted *before* submitWrite in order to guarantee safe publication
+         // thanks to JNI
          iocb.submitInfo = callback;
-         submitWrite(fd, ioContextAddress, iocb.address, position, size, RuntimeDependent.directBufferAddress(bufferWrite), iocb.id);
+         int rc = submitWrite(fd, ioContextAddress, iocb.address, position, size,
+               RuntimeDependent.directBufferAddress(bufferWrite), iocb.id);
          return iocb.id;
       } catch (IOException ioException) {
          iocb.submitInfo = null;
@@ -274,7 +286,8 @@ public class LibaioContext<Callback extends SubmitInfo> implements Closeable {
       }
    }
 
-   public int submitRead(int fd, long position, int size, ByteBuffer bufferWrite, Callback callback) throws IOException {
+   public int submitRead(int fd, long position, int size, ByteBuffer bufferWrite, Callback callback)
+         throws IOException {
       if (closed.get()) {
          throw new IOException("Libaio Context is closed!");
       }
@@ -293,9 +306,11 @@ public class LibaioContext<Callback extends SubmitInfo> implements Closeable {
       }
       try {
          assert iocb.submitInfo == null;
-         // set submitted *before* submitRead in order to guarantee safe publication thanks to JNI
+         // set submitted *before* submitRead in order to guarantee safe publication
+         // thanks to JNI
          iocb.submitInfo = callback;
-         submitRead(fd, ioContextAddress, iocb.address, position, size, RuntimeDependent.directBufferAddress(bufferWrite), iocb.id);
+         submitRead(fd, ioContextAddress, iocb.address, position, size,
+               RuntimeDependent.directBufferAddress(bufferWrite), iocb.id);
          return iocb.id;
       } catch (IOException ioException) {
          iocb.submitInfo = null;
@@ -310,8 +325,8 @@ public class LibaioContext<Callback extends SubmitInfo> implements Closeable {
    /**
     * This is used to close the libaio queues and cleanup the native data used.
     * <br>
-    * It is unsafe to close the controller while you have pending writes or files open as
-    * this could cause core dumps or VM crashes.
+    * It is unsafe to close the controller while you have pending writes or files
+    * open as this could cause core dumps or VM crashes.
     */
    @Override
    public void close() {
@@ -321,7 +336,7 @@ public class LibaioContext<Callback extends SubmitInfo> implements Closeable {
             try {
                ioSpace.tryAcquire(queueSize, 10, TimeUnit.SECONDS);
             } catch (Exception e) {
-               NativeLogger.LOGGER.error(e);
+               LOG.error("Error closing queue", e);
             }
          }
          totalMaxIO.addAndGet(-queueSize);
@@ -334,7 +349,7 @@ public class LibaioContext<Callback extends SubmitInfo> implements Closeable {
             }
             try {
                // Submitting a dumb write so the loop finishes
-               submitWrite(dumbFD, ioContextAddress, iocb.address, 0, 0, 0, iocb.id);
+               int rc = submitWrite(dumbFD, ioContextAddress, iocb.address, 0, 0, 0, iocb.id);
             } catch (IOException ioException) {
                // TODO handle this
             }
@@ -377,8 +392,9 @@ public class LibaioContext<Callback extends SubmitInfo> implements Closeable {
    }
 
    /**
-    * It will open a file. If you set the direct flag = false then you won't need to use the special buffer.
-    * Notice: This will create an empty file if the file doesn't already exist.
+    * It will open a file. If you set the direct flag = false then you won't need
+    * to use the special buffer. Notice: This will create an empty file if the file
+    * doesn't already exist.
     *
     * @param file   the file to be open.
     * @param direct will set ODIRECT.
@@ -390,8 +406,9 @@ public class LibaioContext<Callback extends SubmitInfo> implements Closeable {
    }
 
    /**
-    * It will open a file. If you set the direct flag = false then you won't need to use the special buffer.
-    * Notice: This will create an empty file if the file doesn't already exist.
+    * It will open a file. If you set the direct flag = false then you won't need
+    * to use the special buffer. Notice: This will create an empty file if the file
+    * doesn't already exist.
     *
     * @param file   the file to be open.
     * @param direct should use O_DIRECT when opening the file.
@@ -409,15 +426,15 @@ public class LibaioContext<Callback extends SubmitInfo> implements Closeable {
    }
 
    /**
-    * It will open a file disassociated with any sort of factory.
-    * This is useful when you won't use reading / writing through libaio like locking files.
+    * It will open a file disassociated with any sort of factory. This is useful
+    * when you won't use reading / writing through libaio like locking files.
     *
     * @param file   a file name
     * @param direct will use O_DIRECT
     * @return a new file
     * @throws IOException in case of error.
     */
-   public static LibaioFile openControlFile(String file, boolean direct) throws IOException {
+   public static LibaioFile<?> openControlFile(String file, boolean direct) throws IOException {
       checkNotNull(file, "path");
 
       // note: the native layer will throw an IOException in case of errors
@@ -427,8 +444,8 @@ public class LibaioContext<Callback extends SubmitInfo> implements Closeable {
    }
 
    /**
-    * Checks that the given argument is not null. If it is, throws {@link NullPointerException}.
-    * Otherwise, returns the argument.
+    * Checks that the given argument is not null. If it is, throws
+    * {@link NullPointerException}. Otherwise, returns the argument.
     */
    private static <T> T checkNotNull(T arg, String text) {
       if (arg == null) {
@@ -481,7 +498,8 @@ public class LibaioContext<Callback extends SubmitInfo> implements Closeable {
             pooledIOCB.submitInfo = null;
          }
          // NOTE:
-         // First we return back the IOCB then we release the semaphore, to let submitInfo::done
+         // First we return back the IOCB then we release the semaphore, to let
+         // submitInfo::done
          // to be able to issue a further write/read.
          iocbPool.add(pooledIOCB);
          if (ioSpace != null) {
@@ -505,11 +523,11 @@ public class LibaioContext<Callback extends SubmitInfo> implements Closeable {
    }
 
    /**
-    * It will start polling and will keep doing until the context is closed.
-    * This will call callbacks on {@link SubmitInfo#onError(int, String)} and
-    * {@link SubmitInfo#done()}.
-    * In case of error, both {@link SubmitInfo#onError(int, String)} and
-    * {@link SubmitInfo#done()} are called.
+    * It will start polling and will keep doing until the context is closed. This
+    * will call callbacks on {@link SubmitInfo#onError(int, String)} and
+    * {@link SubmitInfo#done()}. In case of error, both
+    * {@link SubmitInfo#onError(int, String)} and {@link SubmitInfo#done()} are
+    * called.
     */
    public void poll() {
       if (closed.get()) {
@@ -626,8 +644,7 @@ public class LibaioContext<Callback extends SubmitInfo> implements Closeable {
     */
 
    /**
-    * Buffers for O_DIRECT need to use posix_memalign.
-    * <br>
+    * Buffers for O_DIRECT need to use posix_memalign. <br>
     * Documented at {@link LibaioFile#newBuffer(int)}.
     *
     * @param size      needs to be % alignment
@@ -637,38 +654,29 @@ public class LibaioContext<Callback extends SubmitInfo> implements Closeable {
    public static native ByteBuffer newAlignedBuffer(int size, int alignment);
 
    /**
-    * This will call posix free to release the inner buffer allocated at {@link #newAlignedBuffer(int, int)}.
+    * This will call posix free to release the inner buffer allocated at
+    * {@link #newAlignedBuffer(int, int)}.
     *
-    * @param buffer a native buffer allocated with {@link #newAlignedBuffer(int, int)}.
+    * @param buffer a native buffer allocated with
+    *               {@link #newAlignedBuffer(int, int)}.
     */
    public static native void freeBuffer(ByteBuffer buffer);
 
-   private static native void submitWrite(int fd,
-                           long ioContextAddress,
-                           long iocbAddress,
-                           long position,
-                           int size,
-                           long bufferAddress,
-                           long requestId) throws IOException;
+   private static native int submitWrite(int fd, long ioContextAddress, long iocbAddress, long position, int size,
+         long bufferAddress, long requestId) throws IOException;
 
-   private static native void submitRead(int fd,
-                          long ioContextAddress,
-                          long iocbAddress,
-                          long position,
-                          int size,
-                          long bufferAddress,
-                          long requestId) throws IOException;
+   private static native int submitRead(int fd, long ioContextAddress, long iocbAddress, long position, int size,
+         long bufferAddress, long requestId) throws IOException;
 
-   private static native void submitFDataSync(int fd,
-                                              long ioContextAddress,
-                                              long iocbAddress,
-                                              long requestId) throws IOException;
+   private static native void submitFDataSync(int fd, long ioContextAddress, long iocbAddress, long requestId)
+         throws IOException;
 
    /**
-    * Note: this shouldn't be done concurrently.
-    * This method will block until the min condition is satisfied on the poll.
+    * Note: this shouldn't be done concurrently. This method will block until the
+    * min condition is satisfied on the poll.
     * <p/>
-    * The callbacks will include the original callback sent at submit (read or write).
+    * The callbacks will include the original callback sent at submit (read or
+    * write).
     */
    private static native int poll(long ioContextAddress, long ioEventAddress, int min, int max);
 
@@ -694,7 +702,11 @@ public class LibaioContext<Callback extends SubmitInfo> implements Closeable {
 
    static native void fill(int fd, int alignment, long size);
 
-   static native void fdatasync(int fd);
+   static native int fsync(int fd);
+
+   static native int ftruncate(int fd, long size);
+
+   static native int fdatasync(int fd);
 
    /**
     * Utility class built to detect runtime dependent features safely.
@@ -710,7 +722,7 @@ public class LibaioContext<Callback extends SubmitInfo> implements Closeable {
          if (hasUnsafe) {
             Field addressField = unsafeAddressField();
             if (addressField != null) {
-               bufferAddressFieldOffset = unsafeAddressFiledOffset(addressField);
+               bufferAddressFieldOffset = unsafeAddressFieldOffset(addressField);
                hasUnsafe = true;
             } else {
                bufferAddressFieldOffset = -1;
@@ -733,7 +745,7 @@ public class LibaioContext<Callback extends SubmitInfo> implements Closeable {
          }
       }
 
-      private static long unsafeAddressFiledOffset(Field addressField) {
+      private static long unsafeAddressFieldOffset(Field addressField) {
          Objects.requireNonNull(addressField);
          return UnsafeAccess.UNSAFE.objectFieldOffset(addressField);
       }
@@ -745,7 +757,8 @@ public class LibaioContext<Callback extends SubmitInfo> implements Closeable {
             public Object run() {
                try {
                   final Field field = Buffer.class.getDeclaredField("address");
-                  // Use Unsafe to read value of the address field. This way it will not fail on JDK9+ which
+                  // Use Unsafe to read value of the address field. This way it will not fail on
+                  // JDK9+ which
                   // will forbid changing the access level via reflection.
                   final long offset = UnsafeAccess.UNSAFE.objectFieldOffset(field);
                   final long address = UnsafeAccess.UNSAFE.getLong(direct, offset);

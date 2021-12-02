@@ -22,10 +22,10 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 import java.lang.ref.WeakReference;
 import java.nio.ByteBuffer;
+import java.util.ArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicInteger;
 
-import org.apache.activemq.artemis.nativo.jlibaio.AioRing;
 import org.apache.activemq.artemis.nativo.jlibaio.LibaioContext;
 import org.apache.activemq.artemis.nativo.jlibaio.LibaioFile;
 import org.apache.activemq.artemis.nativo.jlibaio.SubmitInfo;
@@ -39,8 +39,8 @@ import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
 
 /**
- * This test is using a different package from {@link LibaioFile}
- * as I need to validate public methods on the API
+ * This test is using a different package from {@link LibaioFile} as I need to
+ * validate public methods on the API
  */
 public class LibaioTest {
 
@@ -55,7 +55,8 @@ public class LibaioTest {
          parent.mkdirs();
 
          boolean failed = false;
-         try (LibaioContext control = new LibaioContext<>(1, true, true); LibaioFile fileDescriptor = control.openFile(file, true)) {
+         try (LibaioContext<TestInfo> control = new LibaioContext<>(1, true, true);
+               LibaioFile<TestInfo> fileDescriptor = control.openFile(file, true)) {
             fileDescriptor.fallocate(4 * 1024);
          } catch (Exception e) {
             e.printStackTrace();
@@ -69,8 +70,9 @@ public class LibaioTest {
    }
 
    /**
-    * This is just an arbitrary number for a number of elements you need to pass to the libaio init method
-    * Some of the tests are using half of this number, so if anyone decide to change this please use an even number.
+    * This is just an arbitrary number for a number of elements you need to pass to
+    * the libaio init method Some of the tests are using half of this number, so if
+    * anyone decide to change this please use an even number.
     */
    private static final int LIBAIO_QUEUE_SIZE = 50;
 
@@ -85,7 +87,7 @@ public class LibaioTest {
    }
 
    @After
-   public void deleteFactory() throws IOException {
+   public void deleteFactory() {
       control.close();
       validateLibaio();
    }
@@ -95,12 +97,11 @@ public class LibaioTest {
    }
 
    public LibaioTest() {
-        /*
-         *  I didn't use /tmp for three reasons
-         *  - Most systems now will use tmpfs which is not compatible with O_DIRECT
-         *  - This would fill up /tmp in case of failures.
-         *  - target is cleaned up every time you do a mvn clean, so it's safer
-         */
+      /*
+       * I didn't use /tmp for three reasons - Most systems now will use tmpfs which
+       * is not compatible with O_DIRECT - This would fill up /tmp in case of
+       * failures. - target is cleaned up every time you do a mvn clean, so it's safer
+       */
       File parent = new File("./target");
       parent.mkdirs();
       temporaryFolder = new TemporaryFolder(parent);
@@ -108,7 +109,7 @@ public class LibaioTest {
 
    @Test
    public void testOpen() throws Exception {
-      LibaioFile fileDescriptor = control.openFile(temporaryFolder.newFile("test.bin"), true);
+      LibaioFile<TestInfo> fileDescriptor = control.openFile(temporaryFolder.newFile("test.bin"), true);
       fileDescriptor.close();
    }
 
@@ -123,7 +124,7 @@ public class LibaioTest {
    }
 
    private void testInit(int size) throws IOException {
-      LibaioFile fileDescriptor = control.openFile(temporaryFolder.newFile("test.bin"), true);
+      LibaioFile<TestInfo> fileDescriptor = control.openFile(temporaryFolder.newFile("test.bin"), true);
       fileDescriptor.fallocate(size);
 
       ByteBuffer buffer = fileDescriptor.newBuffer(size);
@@ -136,7 +137,7 @@ public class LibaioTest {
 
       buffer.position(0);
 
-      LibaioFile fileDescriptor2 = control.openFile(temporaryFolder.newFile("test2.bin"), true);
+      LibaioFile<TestInfo> fileDescriptor2 = control.openFile(temporaryFolder.newFile("test2.bin"), true);
       fileDescriptor2.fill(fileDescriptor.getBlockSize(), size);
       fileDescriptor2.read(0, size, buffer, new TestInfo());
 
@@ -167,14 +168,16 @@ public class LibaioTest {
       fillupFile(file1, LIBAIO_QUEUE_SIZE / 2);
       fillupFile(file2, LIBAIO_QUEUE_SIZE / 2);
 
-      LibaioFile[] fileDescriptor = new LibaioFile[]{control.openFile(file1, true), control.openFile(file2, true)};
+      ArrayList<LibaioFile<TestInfo>> fileDescriptor = new ArrayList<>();
+      fileDescriptor.add(control.openFile(file1, true));
+      fileDescriptor.add(control.openFile(file2, true));
 
-      Assert.assertEquals((LIBAIO_QUEUE_SIZE / 2) * 4096, fileDescriptor[0].getSize());
-      Assert.assertEquals((LIBAIO_QUEUE_SIZE / 2) * 4096, fileDescriptor[1].getSize());
-      Assert.assertEquals(fileDescriptor[0].getBlockSize(), fileDescriptor[1].getBlockSize());
+      Assert.assertEquals((LIBAIO_QUEUE_SIZE / 2) * 4096, fileDescriptor.get(0).getSize());
+      Assert.assertEquals((LIBAIO_QUEUE_SIZE / 2) * 4096, fileDescriptor.get(1).getSize());
+      Assert.assertEquals(fileDescriptor.get(0).getBlockSize(), fileDescriptor.get(1).getBlockSize());
       Assert.assertEquals(LibaioContext.getBlockSize(temporaryFolder.getRoot()), LibaioContext.getBlockSize(file1));
       Assert.assertEquals(LibaioContext.getBlockSize(file1), LibaioContext.getBlockSize(file2));
-      System.out.println("blockSize = " + fileDescriptor[0].getBlockSize());
+      System.out.println("blockSize = " + fileDescriptor.get(0).getBlockSize());
       System.out.println("blockSize /tmp= " + LibaioContext.getBlockSize("/tmp"));
 
       ByteBuffer buffer = LibaioContext.newAlignedBuffer(4096, 4096);
@@ -188,7 +191,7 @@ public class LibaioTest {
          TestInfo[] callbacks = new TestInfo[LIBAIO_QUEUE_SIZE];
 
          for (int i = 0; i < LIBAIO_QUEUE_SIZE / 2; i++) {
-            for (LibaioFile file : fileDescriptor) {
+            for (LibaioFile<TestInfo> file : fileDescriptor) {
                file.write(i * 4096, 4096, buffer, callback);
             }
          }
@@ -199,7 +202,7 @@ public class LibaioTest {
             Assert.assertSame(returnedCallback, callback);
          }
 
-         for (LibaioFile file : fileDescriptor) {
+         for (LibaioFile<TestInfo> file : fileDescriptor) {
             ByteBuffer bigbuffer = LibaioContext.newAlignedBuffer(4096 * 25, 4096);
             file.read(0, 4096 * 25, bigbuffer, callback);
             Assert.assertEquals(1, control.poll(callbacks, 1, LIBAIO_QUEUE_SIZE));
@@ -227,7 +230,7 @@ public class LibaioTest {
 
       TestInfo[] callbacks = new TestInfo[LIBAIO_QUEUE_SIZE];
 
-      LibaioFile fileDescriptor = control.openFile(temporaryFolder.newFile("test.bin"), true);
+      LibaioFile<TestInfo> fileDescriptor = control.openFile(temporaryFolder.newFile("test.bin"), true);
 
       // ByteBuffer buffer = ByteBuffer.allocateDirect(4096);
       ByteBuffer buffer = LibaioContext.newAlignedBuffer(4096, 4096);
@@ -275,9 +278,10 @@ public class LibaioTest {
 
    @Test
    /**
-    * This file is making use of libaio without O_DIRECT
-    * We won't need special buffers on this case.
-    */ public void testSubmitWriteAndReadRegularBuffers() throws Exception {
+    * This file is making use of libaio without O_DIRECT We won't need special
+    * buffers on this case.
+    */
+   public void testSubmitWriteAndReadRegularBuffers() throws Exception {
       TestInfo callback = new TestInfo();
 
       TestInfo[] callbacks = new TestInfo[LIBAIO_QUEUE_SIZE];
@@ -286,7 +290,7 @@ public class LibaioTest {
 
       fillupFile(file, LIBAIO_QUEUE_SIZE);
 
-      LibaioFile fileDescriptor = control.openFile(file, false);
+      LibaioFile<TestInfo> fileDescriptor = control.openFile(file, false);
 
       final int BUFFER_SIZE = 50;
 
@@ -342,7 +346,7 @@ public class LibaioTest {
 
       fillupFile(file, LIBAIO_QUEUE_SIZE);
 
-      LibaioFile fileDescriptor = control.openFile(file, true);
+      LibaioFile<TestInfo> fileDescriptor = control.openFile(file, true);
 
       ByteBuffer buffer = LibaioContext.newAlignedBuffer(4096, 4096);
 
@@ -384,7 +388,7 @@ public class LibaioTest {
 
       fillupFile(file, LIBAIO_QUEUE_SIZE);
 
-      LibaioFile fileDescriptor = control.openFile(file, true);
+      LibaioFile<TestInfo> fileDescriptor = control.openFile(file, true);
 
       try {
          ByteBuffer buffer = ByteBuffer.allocateDirect(300);
@@ -472,7 +476,7 @@ public class LibaioTest {
    public void testLock() throws Exception {
       File file = temporaryFolder.newFile("test.bin");
 
-      LibaioFile fileDescriptor = control.openFile(file, true);
+      LibaioFile<TestInfo> fileDescriptor = control.openFile(file, true);
       fileDescriptor.lock();
 
       fileDescriptor.close();
@@ -482,8 +486,8 @@ public class LibaioTest {
    public void testAlloc() throws Exception {
       File file = temporaryFolder.newFile("test.bin");
 
-      LibaioFile fileDescriptor = control.openFile(file, true);
-      fileDescriptor.fill(fileDescriptor.getBlockSize(),10 * 1024 * 1024);
+      LibaioFile<TestInfo> fileDescriptor = control.openFile(file, true);
+      fileDescriptor.fill(fileDescriptor.getBlockSize(), 10 * 1024 * 1024);
 
       fileDescriptor.close();
    }
@@ -534,9 +538,9 @@ public class LibaioTest {
 
       control.close();
       control = new LibaioContext<>(LIBAIO_QUEUE_SIZE, false, true);
-      try {
-         // There is no space for a queue this huge, the native layer should throw the exception
-         LibaioContext newController = new LibaioContext(Integer.MAX_VALUE, false, true);
+      try (LibaioContext<TestInfo> newController = new LibaioContext<>(Integer.MAX_VALUE, false, true)) {
+         // There is no space for a queue this huge, the native layer should throw the
+         // exception
       } catch (RuntimeException e) {
          exceptionThrown = true;
       }
@@ -555,7 +559,7 @@ public class LibaioTest {
 
       exceptionThrown = false;
 
-      LibaioFile fileDescriptor = control.openFile(temporaryFolder.newFile(), true);
+      LibaioFile<TestInfo> fileDescriptor = control.openFile(temporaryFolder.newFile(), true);
       fileDescriptor.close();
       try {
          fileDescriptor.close();
@@ -631,26 +635,10 @@ public class LibaioTest {
 
    @Test
    public void testBlockedCallback() throws Exception {
-      final LibaioContext blockedContext = new LibaioContext(LIBAIO_QUEUE_SIZE, true, true);
-      Thread t = new Thread() {
-         @Override
-         public void run() {
-            blockedContext.poll();
-         }
-      };
-
-      t.start();
-
       int NUMBER_OF_BLOCKS = LIBAIO_QUEUE_SIZE * 10;
 
-      final CountDownLatch latch = new CountDownLatch(NUMBER_OF_BLOCKS);
-
-      File file = temporaryFolder.newFile("sub-file.txt");
-      LibaioFile aioFile = blockedContext.openFile(file, true);
-      aioFile.fill(aioFile.getBlockSize(),NUMBER_OF_BLOCKS * 4096);
-
       final AtomicInteger errors = new AtomicInteger(0);
-
+      final CountDownLatch latch = new CountDownLatch(NUMBER_OF_BLOCKS);
       class MyCallback implements SubmitInfo {
 
          @Override
@@ -663,6 +651,20 @@ public class LibaioTest {
             latch.countDown();
          }
       }
+
+      final LibaioContext<MyCallback> blockedContext = new LibaioContext<>(LIBAIO_QUEUE_SIZE, true, true);
+      Thread t = new Thread() {
+         @Override
+         public void run() {
+            blockedContext.poll();
+         }
+      };
+
+      t.start();
+
+      File file = temporaryFolder.newFile("sub-file.txt");
+      LibaioFile<MyCallback> aioFile = blockedContext.openFile(file, true);
+      aioFile.fill(aioFile.getBlockSize(), NUMBER_OF_BLOCKS * 4096);
 
       MyCallback callback = new MyCallback();
 
@@ -707,6 +709,7 @@ public class LibaioTest {
       static AtomicInteger count = new AtomicInteger();
 
       @Override
+      @SuppressWarnings("deprecated")
       protected void finalize() throws Throwable {
          super.finalize();
          count.decrementAndGet();
@@ -714,7 +717,7 @@ public class LibaioTest {
 
       public static void checkLeaks() throws InterruptedException {
          for (int i = 0; count.get() != 0 && i < 50; i++) {
-            WeakReference reference = new WeakReference(new Object());
+            WeakReference<?> reference = new WeakReference<>(new Object());
             while (reference.get() != null) {
                System.gc();
                Thread.sleep(100);

@@ -53,7 +53,7 @@ public class OpenCloseContextTest {
 
       for (int i = 0; i < 10; i++) {
          System.out.println("#test " + i);
-         final LibaioContext control = new LibaioContext<>(5, true, true);
+         final LibaioContext<SubmitInfo> control = new LibaioContext<>(5, true, true);
          Thread t = new Thread() {
             @Override
             public void run() {
@@ -61,7 +61,7 @@ public class OpenCloseContextTest {
             }
          };
          t.start();
-         LibaioFile file = control.openFile(folder.newFile(), true);
+         LibaioFile<SubmitInfo> file = control.openFile(folder.newFile(), true);
          file.fill(file.getBlockSize(),4 * 1024);
          final CountDownLatch insideMethod = new CountDownLatch(1);
          final CountDownLatch awaitInside = new CountDownLatch(1);
@@ -111,7 +111,7 @@ public class OpenCloseContextTest {
 
       for (int i = 0; i < 10; i++) {
          System.out.println("#test " + i);
-         final LibaioContext control = new LibaioContext<>(5, true, true);
+         final LibaioContext<SubmitInfo> control = new LibaioContext<>(5, true, true);
          Thread t = new Thread() {
             @Override
             public void run() {
@@ -119,7 +119,7 @@ public class OpenCloseContextTest {
             }
          };
          t.start();
-         LibaioFile file = control.openFile(folder.newFile(), true);
+         LibaioFile<SubmitInfo> file = control.openFile(folder.newFile(), true);
          file.fill(file.getBlockSize(), 4 * 1024);
          final CountDownLatch insideMethod = new CountDownLatch(1);
          final CountDownLatch awaitInside = new CountDownLatch(1);
@@ -150,7 +150,6 @@ public class OpenCloseContextTest {
 
             @Override
             public void done() {
-               System.out.println("empty done");
             }
          });
 
@@ -165,9 +164,9 @@ public class OpenCloseContextTest {
 
    @Test
    public void testCloseAndStart() throws Exception {
-      final LibaioContext control2 = new LibaioContext<>(5, true, true);
+      final LibaioContext<SubmitInfo> control2 = new LibaioContext<>(5, true, true);
 
-      final LibaioContext control = new LibaioContext<>(5, true, true);
+      final LibaioContext<SubmitInfo> control = new LibaioContext<>(5, true, true);
       control.close();
       control.poll();
 

@@ -108,17 +108,17 @@ JNIEXPORT void JNICALL Java_org_apache_activemq_artemis_nativo_jlibaio_LibaioCon
 /*
  * Class:     org_apache_activemq_artemis_nativo_jlibaio_LibaioContext
  * Method:    submitWrite
- * Signature: (IJJJIJJ)V
+ * Signature: (IJJJIJJ)I
  */
-JNIEXPORT void JNICALL Java_org_apache_activemq_artemis_nativo_jlibaio_LibaioContext_submitWrite
+JNIEXPORT jint JNICALL Java_org_apache_activemq_artemis_nativo_jlibaio_LibaioContext_submitWrite
   (JNIEnv *, jclass, jint, jlong, jlong, jlong, jint, jlong, jlong);
 
 /*
  * Class:     org_apache_activemq_artemis_nativo_jlibaio_LibaioContext
  * Method:    submitRead
- * Signature: (IJJJIJJ)V
+ * Signature: (IJJJIJJ)I
  */
-JNIEXPORT void JNICALL Java_org_apache_activemq_artemis_nativo_jlibaio_LibaioContext_submitRead
+JNIEXPORT jint JNICALL Java_org_apache_activemq_artemis_nativo_jlibaio_LibaioContext_submitRead
   (JNIEnv *, jclass, jint, jlong, jlong, jlong, jint, jlong, jlong);
 
 /*
@@ -211,10 +211,26 @@ JNIEXPORT void JNICALL Java_org_apache_activemq_artemis_nativo_jlibaio_LibaioCon
 
 /*
  * Class:     org_apache_activemq_artemis_nativo_jlibaio_LibaioContext
- * Method:    fdatasync
- * Signature: (I)V
+ * Method:    fsync
+ * Signature: (I)I
  */
-JNIEXPORT void JNICALL Java_org_apache_activemq_artemis_nativo_jlibaio_LibaioContext_fdatasync
+JNIEXPORT jint JNICALL Java_org_apache_activemq_artemis_nativo_jlibaio_LibaioContext_fsync
+  (JNIEnv *, jclass, jint);
+
+/*
+ * Class:     org_apache_activemq_artemis_nativo_jlibaio_LibaioContext
+ * Method:    ftruncate
+ * Signature: (IJ)I
+ */
+JNIEXPORT jint JNICALL Java_org_apache_activemq_artemis_nativo_jlibaio_LibaioContext_ftruncate
+  (JNIEnv *, jclass, jint, jlong);
+
+/*
+ * Class:     org_apache_activemq_artemis_nativo_jlibaio_LibaioContext
+ * Method:    fdatasync
+ * Signature: (I)I
+ */
+JNIEXPORT jint JNICALL Java_org_apache_activemq_artemis_nativo_jlibaio_LibaioContext_fdatasync
   (JNIEnv *, jclass, jint);
 
 #ifdef __cplusplus
